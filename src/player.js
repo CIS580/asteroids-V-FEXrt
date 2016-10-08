@@ -75,7 +75,7 @@ function Player(position, canvas) {
 Player.prototype.update = function(time) {
   // Apply angular velocity
   if(this.steerLeft) {
-    this.angle += time * 0.005;
+    this.angle += 0.1;
   }
   if(this.steerRight) {
     this.angle -= 0.1;
@@ -83,8 +83,8 @@ Player.prototype.update = function(time) {
   // Apply acceleration
   if(this.thrusting) {
     var acceleration = {
-      x: Math.sin(this.angle),
-      y: Math.cos(this.angle)
+      x: Math.sin(this.angle) * 0.1,
+      y: Math.cos(this.angle) * 0.1
     }
     this.velocity.x -= acceleration.x;
     this.velocity.y -= acceleration.y;

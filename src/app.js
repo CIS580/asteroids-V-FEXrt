@@ -1,13 +1,35 @@
 "use strict;"
 
+window.debug = true;
+
 /* Classes */
 const Game = require('./game.js');
 const Player = require('./player.js');
+const ResourceManager = require('./ResourceManager.js');
+const Asteroid = require('./asteroid.js');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas);
+var ast;
+
+var resourceManager = new ResourceManager(function(){
+
+  ast = new Asteroid('large', 'c4', resourceManager);
+
+  masterLoop(performance.now());
+});
+
+
+['large', 'medium', 'small'].forEach(function(folder){
+  ['a1', 'a3', 'c4'].forEach(function(prefix){
+    for(var i = 0; i < 16; i++){
+      resourceManager.addImage('assets/' + folder + '/' + prefix + ((i < 10) ? '000' : '00') + i + '.png');
+    }
+  });
+});
+resourceManager.loadAll();
 
 /**
  * @function masterLoop
@@ -18,7 +40,6 @@ var masterLoop = function(timestamp) {
   game.loop(timestamp);
   window.requestAnimationFrame(masterLoop);
 }
-masterLoop(performance.now());
 
 
 /**
@@ -31,6 +52,7 @@ masterLoop(performance.now());
  */
 function update(elapsedTime) {
   player.update(elapsedTime);
+  ast.update(elapsedTime);
   // TODO: Update the game objects
 }
 
@@ -45,4 +67,5 @@ function render(elapsedTime, ctx) {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   player.render(elapsedTime, ctx);
+  ast.render(elapsedTime, ctx);
 }

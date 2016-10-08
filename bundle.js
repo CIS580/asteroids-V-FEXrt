@@ -1,14 +1,84 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+"use strict";
+
+module.exports = exports = ResourceManager
+
+function ResourceManager(callback) {
+  this.callback = callback;
+  this.resourcesToLoad = 0;
+  this.images = {};
+  this.audio = {};
+}
+
+function onLoad(em) {
+  em.resourcesToLoad--;
+  if(em.resourcesToLoad == 0) em.callback();
+}
+
+ResourceManager.prototype.addImage = function(url) {
+  if(this.images[url]) return this.images[url];
+  this.resourcesToLoad++;
+  var self = this;
+  this.images[url] = new Image();
+  this.images[url].onload = function() {onLoad(self);}
+}
+
+ResourceManager.prototype.addAudio = function(url) {
+  if(this.audio[url]) return this.audio[url];
+  this.resourcesToLoad++;
+  var self = this;
+  this.audio[url] = new Audio();
+  this.audio[url].onloadeddata = function() {onLoad(self);}
+}
+
+ResourceManager.prototype.getResource = function(url) {
+    if(this.images[url]) return this.images[url];
+    if(this.audio[url]) return this.audio[url];
+}
+
+ResourceManager.prototype.loadAll = function() {
+  var self = this;
+  Object.keys(this.images).forEach(function(url){
+    self.images[url].src = url;
+  });
+  Object.keys(this.audio).forEach(function(url){
+    self.audio[url].src = url;
+  });
+}
+
+},{}],2:[function(require,module,exports){
 "use strict;"
+
+window.debug = true;
 
 /* Classes */
 const Game = require('./game.js');
 const Player = require('./player.js');
+const ResourceManager = require('./ResourceManager.js');
+const Asteroid = require('./asteroid.js');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas);
+var ast;
+
+var resourceManager = new ResourceManager(function(){
+
+  ast = new Asteroid('large', 'c4', resourceManager);
+
+  masterLoop(performance.now());
+});
+
+
+['large', 'medium', 'small'].forEach(function(folder){
+  ['a1', 'a3', 'c4'].forEach(function(prefix){
+    for(var i = 0; i < 16; i++){
+      resourceManager.addImage('assets/' + folder + '/' + prefix + ((i < 10) ? '000' : '00') + i + '.png');
+    }
+  });
+});
+resourceManager.loadAll();
 
 /**
  * @function masterLoop
@@ -19,7 +89,6 @@ var masterLoop = function(timestamp) {
   game.loop(timestamp);
   window.requestAnimationFrame(masterLoop);
 }
-masterLoop(performance.now());
 
 
 /**
@@ -32,6 +101,7 @@ masterLoop(performance.now());
  */
 function update(elapsedTime) {
   player.update(elapsedTime);
+  ast.update(elapsedTime);
   // TODO: Update the game objects
 }
 
@@ -46,9 +116,53 @@ function render(elapsedTime, ctx) {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   player.render(elapsedTime, ctx);
+  ast.render(elapsedTime, ctx);
 }
 
-},{"./game.js":2,"./player.js":3}],2:[function(require,module,exports){
+},{"./ResourceManager.js":1,"./asteroid.js":3,"./game.js":4,"./player.js":5}],3:[function(require,module,exports){
+"use strict";
+
+const MS_PER_FRAME = 1000/8;
+const TRANSITION_TIME = 1000/16;
+
+module.exports = exports = Asteroid;
+
+function Asteroid(size, code, resourceManager) {
+  this.sprites = [];
+
+  for(var i = 0; i < 16; i++){
+    var img = resourceManager.getResource('assets/' + size + '/' + code + ((i < 10) ? '000' : '00') + i + '.png');
+    this.sprites.push(img);
+  }
+
+  this.frame = 0;
+  this.timer = 0
+}
+
+Asteroid.prototype.update = function(time) {
+  this.timer += time;
+  if(this.timer > TRANSITION_TIME){
+    this.frame = (this.frame + 1) % this.sprites.length;
+    this.timer = 0;
+  }
+}
+
+Asteroid.prototype.render = function(time, ctx){
+  var img = this.sprites[this.frame]
+
+  ctx.drawImage(
+    img,
+    0, 0);
+
+  if(window.debug){
+    ctx.strokeStyle = 'green';
+    ctx.rect(0, 0, img.width, img.height);
+    ctx.stroke();
+  }
+  
+}
+
+},{}],4:[function(require,module,exports){
 "use strict";
 
 /**
@@ -106,7 +220,7 @@ Game.prototype.loop = function(newTime) {
   this.frontCtx.drawImage(this.backBuffer, 0, 0);
 }
 
-},{}],3:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 
 const MS_PER_FRAME = 1000/8;
@@ -184,7 +298,7 @@ function Player(position, canvas) {
 Player.prototype.update = function(time) {
   // Apply angular velocity
   if(this.steerLeft) {
-    this.angle += time * 0.005;
+    this.angle += 0.1;
   }
   if(this.steerRight) {
     this.angle -= 0.1;
@@ -192,8 +306,8 @@ Player.prototype.update = function(time) {
   // Apply acceleration
   if(this.thrusting) {
     var acceleration = {
-      x: Math.sin(this.angle),
-      y: Math.cos(this.angle)
+      x: Math.sin(this.angle) * 0.1,
+      y: Math.cos(this.angle) * 0.1
     }
     this.velocity.x -= acceleration.x;
     this.velocity.y -= acceleration.y;
@@ -241,4 +355,4 @@ Player.prototype.render = function(time, ctx) {
   ctx.restore();
 }
 
-},{}]},{},[1]);
+},{}]},{},[2]);
