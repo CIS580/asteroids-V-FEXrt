@@ -37,5 +37,5 @@ Asteroid.prototype.render = function(time, ctx){
     ctx.rect(0, 0, img.width, img.height);
     ctx.stroke();
   }
-  
+
 }

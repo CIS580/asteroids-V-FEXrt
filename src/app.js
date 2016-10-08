@@ -16,7 +16,7 @@ var ast;
 
 var resourceManager = new ResourceManager(function(){
 
-  ast = new Asteroid('large', 'c4', resourceManager);
+  ast = new Asteroid('small', 'c4', resourceManager);
 
   masterLoop(performance.now());
 });
