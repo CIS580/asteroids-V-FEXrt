@@ -61,13 +61,8 @@ function Player(position, canvas, entityManager) {
         self.steerRight = true;
         break;
       case 'f':
-        console.log('warp');
         self.warp();
         break;
-    }
-
-    if(event.keyCode == 32){
-      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager));
     }
   }
 
@@ -86,6 +81,10 @@ function Player(position, canvas, entityManager) {
       case 'd':
         self.steerRight = false;
         break;
+    }
+
+    if(event.keyCode == 32){
+      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager));
     }
   }
 }
