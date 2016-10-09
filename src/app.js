@@ -5,22 +5,55 @@ window.debug = true;
 /* Classes */
 const Game = require('./game.js');
 const Player = require('./player.js');
-const ResourceManager = require('./ResourceManager.js');
 const Asteroid = require('./asteroid.js');
+const ResourceManager = require('./ResourceManager.js');
+const EntityManager = require('./EntityManager.js');
+const PhysicsManager = require('./PhysicsManager.js');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
-var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas);
-var ast;
 
+var physicsManager = new PhysicsManager();
+var entityManager = new EntityManager(canvas, 128, function(ent1, ent2){
+  ent1.isColliding = true;
+  ent2.isColliding = true;
+
+  if(ent1.type == 'asteroid' && ent2.type == 'asteroid'){
+    physicsManager.applyCollisionPhysics(ent1, ent2);
+  }
+
+  if(ent1.type == 'asteroid' && ent2.type == 'bullet' ||
+     ent2.type == 'asteroid' && ent1.type == 'bullet'){
+
+    var asteroid = (ent1.type == 'asteroid') ? ent1 : ent2;
+
+    var newAsters = asteroid.createNextAsteroids();
+
+    if(newAsters){
+      newAsters.forEach(function(aster){
+        entityManager.addEntity(aster);
+      });
+    }
+
+    entityManager.destroyEntity(ent1);
+    entityManager.destroyEntity(ent2);
+  }
+
+});
 var resourceManager = new ResourceManager(function(){
 
-  ast = new Asteroid('small', 'c4', resourceManager);
+  var asteroidCount = (window.debug) ? 3 : (Math.floor((Math.random() * 10) + 10));
+  for(var i = 0; i < asteroidCount; i++){
+    entityManager.addEntity(new Asteroid('', '', resourceManager, canvas));
+  }
 
   masterLoop(performance.now());
 });
 
+var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas, entityManager);
+
+entityManager.addEntity(player);
 
 ['large', 'medium', 'small'].forEach(function(folder){
   ['a1', 'a3', 'c4'].forEach(function(prefix){
@@ -51,8 +84,7 @@ var masterLoop = function(timestamp) {
  * the number of milliseconds passed since the last frame.
  */
 function update(elapsedTime) {
-  player.update(elapsedTime);
-  ast.update(elapsedTime);
+  entityManager.update(elapsedTime);
   // TODO: Update the game objects
 }
 
@@ -66,6 +98,6 @@ function update(elapsedTime) {
 function render(elapsedTime, ctx) {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  player.render(elapsedTime, ctx);
-  ast.render(elapsedTime, ctx);
+
+  entityManager.render(elapsedTime, ctx);
 }

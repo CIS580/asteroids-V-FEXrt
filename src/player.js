@@ -1,6 +1,7 @@
 "use strict";
 
 const MS_PER_FRAME = 1000/8;
+const Bullet = require('./bullet.js');
 
 /**
  * @module exports the Player class
@@ -12,14 +13,21 @@ module.exports = exports = Player;
  * Creates a new player object
  * @param {Postition} position object specifying an x and y
  */
-function Player(position, canvas) {
+function Player(position, canvas, entityManager) {
   this.worldWidth = canvas.width;
   this.worldHeight = canvas.height;
   this.state = "idle";
+  this.isColliding = false;
+  this.type = 'player';
+  this.entityManager = entityManager;
   this.position = {
     x: position.x,
     y: position.y
   };
+  this.size = {
+    width: 20,
+    height: 20
+  }
   this.velocity = {
     x: 0,
     y: 0
@@ -46,7 +54,12 @@ function Player(position, canvas) {
         self.steerRight = true;
         break;
     }
+
+    if(event.keyCode == 32){
+      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager));
+    }
   }
+
 
   window.onkeyup = function(event) {
     switch(event.key) {
@@ -97,6 +110,7 @@ Player.prototype.update = function(time) {
   if(this.position.x > this.worldWidth) this.position.x -= this.worldWidth;
   if(this.position.y < 0) this.position.y += this.worldHeight;
   if(this.position.y > this.worldHeight) this.position.y -= this.worldHeight;
+
 }
 
 /**
@@ -108,6 +122,7 @@ Player.prototype.render = function(time, ctx) {
   ctx.save();
 
   // Draw player's ship
+  ctx.strokeStyle = 'white';
   ctx.translate(this.position.x, this.position.y);
   ctx.rotate(-this.angle);
   ctx.beginPath();
@@ -116,7 +131,6 @@ Player.prototype.render = function(time, ctx) {
   ctx.lineTo(0, 0);
   ctx.lineTo(10, 10);
   ctx.closePath();
-  ctx.strokeStyle = 'white';
   ctx.stroke();
 
   // Draw engine thrust
@@ -129,5 +143,15 @@ Player.prototype.render = function(time, ctx) {
     ctx.strokeStyle = 'orange';
     ctx.stroke();
   }
+
+  if(window.debug){
+    ctx.beginPath();
+    ctx.strokeStyle = (this.isColliding) ? 'red' : 'green';
+    ctx.rect(-10, -10, this.size.width, this.size.height);
+    ctx.stroke();
+  }
+
+  this.isColliding = false;
+
   ctx.restore();
 }
