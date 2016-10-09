@@ -25,12 +25,37 @@ function EntityManager(canvas, cellSize, callback) {
 }
 
 EntityManager.prototype.addEntity = function(entity) {
+  // Entites are expected to have the following
+  // - position.x, position.y, size.width, size.height (they should define a rect)
+  // - type (a unique string represeting the object, usually the class name)
+  // - render (a function to render the entity)
+  // - update (a function to update the entity)
   this.entities.push(entity);
+}
+
+EntityManager.prototype.destroyAllEntitiesOfType = function(type){
+  var self = this;
+  var toDestroy = [];
+  this.entities.forEach(function(entity){
+    if(entity.type == type) toDestroy.push(entity);
+  });
+
+  toDestroy.forEach(function(entity){
+    self.destroyEntity(entity);
+  });
 }
 
 EntityManager.prototype.destroyEntity = function(entity){
   var idx = this.entities.indexOf(entity);
   this.entities.splice(idx, 1);
+}
+
+EntityManager.prototype.countEntitiesOfType = function(type){
+  var count = 0;
+  this.entities.forEach(function(entity){
+    if(entity.type == type) count++;
+  });
+  return count;
 }
 
 EntityManager.prototype.getCell = function(entity){

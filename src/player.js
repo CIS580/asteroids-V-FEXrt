@@ -19,7 +19,14 @@ function Player(position, canvas, entityManager) {
   this.state = "idle";
   this.isColliding = false;
   this.type = 'player';
+  this.score = 0;
+  this.level = 0;
+  this.lives = 3;
   this.entityManager = entityManager;
+  this.staring = {
+    x: position.x,
+    y: position.y
+  };
   this.position = {
     x: position.x,
     y: position.y
@@ -79,8 +86,6 @@ function Player(position, canvas, entityManager) {
   }
 }
 
-
-
 /**
  * @function updates the player object
  * {DOMHighResTimeStamp} time the elapsed time since the last frame
@@ -111,6 +116,18 @@ Player.prototype.update = function(time) {
   if(this.position.y < 0) this.position.y += this.worldHeight;
   if(this.position.y > this.worldHeight) this.position.y -= this.worldHeight;
 
+}
+
+Player.prototype.resetToCenter = function(){
+  this.position = {
+    x: this.staring.x,
+    y: this.staring.y
+  };
+  this.velocity = {
+    x: 0,
+    y: 0
+  }
+  this.angle = 0;
 }
 
 /**

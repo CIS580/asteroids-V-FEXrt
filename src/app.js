@@ -9,6 +9,8 @@ const Asteroid = require('./asteroid.js');
 const ResourceManager = require('./ResourceManager.js');
 const EntityManager = require('./EntityManager.js');
 const PhysicsManager = require('./PhysicsManager.js');
+const ProgressManager = require('./ProgressManager.js');
+const Hud = require('./hud.js');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
@@ -20,40 +22,71 @@ var entityManager = new EntityManager(canvas, 128, function(ent1, ent2){
   ent2.isColliding = true;
 
   if(ent1.type == 'asteroid' && ent2.type == 'asteroid'){
-    physicsManager.applyCollisionPhysics(ent1, ent2);
+    asteroidAsteroidCollision(ent1, ent2);
   }
 
   if(ent1.type == 'asteroid' && ent2.type == 'bullet' ||
      ent2.type == 'asteroid' && ent1.type == 'bullet'){
+    asteroidBulletCollision(ent1, ent2);
+  }
 
-    var asteroid = (ent1.type == 'asteroid') ? ent1 : ent2;
-
-    var newAsters = asteroid.createNextAsteroids();
-
-    if(newAsters){
-      newAsters.forEach(function(aster){
-        entityManager.addEntity(aster);
-      });
-    }
-
-    entityManager.destroyEntity(ent1);
-    entityManager.destroyEntity(ent2);
+  if(ent1.type == 'asteroid' && ent2.type == 'player' ||
+     ent2.type == 'asteroid' && ent1.type == 'player'){
+    asteroidPlayerCollision(ent1, ent2);
   }
 
 });
 var resourceManager = new ResourceManager(function(){
-
-  var asteroidCount = (window.debug) ? 3 : (Math.floor((Math.random() * 10) + 10));
-  for(var i = 0; i < asteroidCount; i++){
-    entityManager.addEntity(new Asteroid('', '', resourceManager, canvas));
-  }
-
+  addAsteroids();
   masterLoop(performance.now());
 });
 
+var GameState = {
+  Playing: 0,
+  Over: 1
+};
+
 var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas, entityManager);
+var gameState = GameState.Playing;
+var hud = new Hud(player, canvas.width, canvas.height);
 
 entityManager.addEntity(player);
+
+
+var gameOverAlpha = 0;
+var gameOverProgress = new ProgressManager(1000,
+  function(pm, percent){
+    gameOverAlpha = percent;
+  },
+  function(pm) {
+    gameOverProgress.reset();
+
+    // Reset anything for game over
+
+    gameOverAlpha = 1;
+    player.level = 0;
+    player.score = 0;
+    player.lives = 3;
+    player.resetToCenter();
+    entityManager.destroyAllEntitiesOfType('asteroid');
+  }
+);
+
+var newGameProgress = new ProgressManager(1000,
+  function(pm, percent){
+    gameOverAlpha = 1 - percent;
+  },
+  function(pm) {
+    gameOverAlpha = 0;
+    newGameProgress.reset();
+
+    // start any processes for new game
+    entityManager.addEntity(player);
+    addAsteroids();
+
+    gameState = GameState.Playing;
+  }
+);
 
 ['large', 'medium', 'small'].forEach(function(folder){
   ['a1', 'a3', 'c4'].forEach(function(prefix){
@@ -75,6 +108,91 @@ var masterLoop = function(timestamp) {
 }
 
 
+function repositionForOverlap(ent1, ent2){
+  var topEnt = ent1.y < ent2.y ? ent1 : ent2;
+  var bottomEnt = ent1.y < ent2.y ? ent2 : ent1;
+
+  var offset = topEnt.y + topEnt.height - bottomEnt.y;
+  topEnt.y -= offset/2;
+  bottomEnt.y += offset/2;
+
+  var leftEnt = ent1.x < ent2.x ? ent1 : ent2;
+  var rightEnt = ent1.x < ent2.x ? ent2 : ent1;
+
+  var offsetX = leftEnt.x + leftEnt.width - rightEnt.x;
+  leftEnt.x -= offsetX/2;
+  rightEnt.x += offsetX/2;
+}
+
+function addAsteroids(){
+  var asteroidCount = (window.debug) ? 3 : (Math.floor((Math.random() * 10) + 10));
+  for(var i = 0; i < asteroidCount; i++){
+    entityManager.addEntity(new Asteroid('', '', resourceManager, canvas));
+  }
+}
+
+function asteroidPlayerCollision(ent1, ent2){
+  var asteroid = (ent1.type == 'asteroid') ? ent1 : ent2;
+  var player = (ent1.type == 'asteroid') ? ent2 : ent1;
+
+  player.resetToCenter();
+
+  player.lives -= 1;
+  if(player.lives == 0){
+    gameOver();
+    return;
+  }
+
+  destroyAsteroid(asteroid);
+  levelIfAllAsteroidDestroyed();
+}
+
+function asteroidAsteroidCollision(ent1, ent2){
+  physicsManager.applyCollisionPhysics(ent1, ent2);
+  repositionForOverlap(ent1, ent2);
+}
+
+function asteroidBulletCollision(ent1, ent2){
+      var asteroid = (ent1.type == 'asteroid') ? ent1 : ent2;
+      var bullet = (ent1.type == 'asteroid') ? ent2 : ent1;
+
+      destroyAsteroid(asteroid);
+      entityManager.destroyEntity(bullet);
+
+      player.score += 5;
+
+      levelIfAllAsteroidDestroyed();
+
+}
+
+function gameOver(){
+  entityManager.destroyEntity(player);
+  gameOverProgress.isActive = true;
+  gameState = GameState.Over;
+  //TODO: This
+}
+
+function levelIfAllAsteroidDestroyed(){
+  if(entityManager.countEntitiesOfType('asteroid') == 0){
+    player.level += 1;
+    player.resetToCenter();
+
+    entityManager.destroyAllEntitiesOfType('bullet');
+
+    addAsteroids();
+  }
+}
+
+function destroyAsteroid(asteroid){
+  var newAsters = asteroid.createNextAsteroids();
+  if(newAsters){
+    newAsters.forEach(function(aster){
+      entityManager.addEntity(aster);
+    });
+  }
+  entityManager.destroyEntity(asteroid);
+}
+
 /**
  * @function update
  * Updates the game state, moving
@@ -85,7 +203,9 @@ var masterLoop = function(timestamp) {
  */
 function update(elapsedTime) {
   entityManager.update(elapsedTime);
-  // TODO: Update the game objects
+  hud.update(elapsedTime);
+  gameOverProgress.progress(elapsedTime);
+  newGameProgress.progress(elapsedTime);
 }
 
 /**
@@ -100,4 +220,32 @@ function render(elapsedTime, ctx) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   entityManager.render(elapsedTime, ctx);
+  hud.render(elapsedTime, ctx);
+
+  // Animate game Over
+  ctx.save();
+  ctx.globalAlpha=gameOverAlpha;
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "black";
+  ctx.font = "bold 40px Garamond";
+  ctx.textAlign="center";
+  ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+  ctx.font = "bold 24px Garamond";
+  ctx.fillText("Space to play again", canvas.width / 2, canvas.height / 2 + 30 );
+
+  ctx.restore();
+}
+
+var playerOnKey = window.onkeydown;
+window.onkeydown = function(event) {
+  if (gameState == GameState.Over){
+    if(event.keyCode == 32){
+      newGameProgress.isActive = true;
+    }
+    return;
+  }
+
+  playerOnKey(event);
 }
