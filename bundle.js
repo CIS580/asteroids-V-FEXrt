@@ -962,6 +962,10 @@ function Player(position, canvas, entityManager) {
       case 'd':
         self.steerRight = true;
         break;
+      case 'f':
+        console.log('warp');
+        self.warp();
+        break;
     }
 
     if(event.keyCode == 32){
@@ -1030,6 +1034,17 @@ Player.prototype.resetToCenter = function(){
     y: 0
   }
   this.angle = 0;
+}
+
+Player.prototype.warp = function(){
+  this.position = {
+    x: Math.floor((Math.random() * this.worldWidth)),
+    y: Math.floor((Math.random() * this.worldHeight))
+  };
+  this.velocity = {
+    x: 0,
+    y: 0
+  }
 }
 
 /**
