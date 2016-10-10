@@ -1,6 +1,6 @@
 "use strict;"
 
-window.debug = true;
+window.debug = false;
 
 /* Classes */
 const Game = require('./game.js');
@@ -10,6 +10,7 @@ const ResourceManager = require('./ResourceManager.js');
 const EntityManager = require('./EntityManager.js');
 const PhysicsManager = require('./PhysicsManager.js');
 const ProgressManager = require('./ProgressManager.js');
+const AudioManager = require('./AudioManager.js');
 const Hud = require('./hud.js');
 
 /* Global variables */
@@ -17,6 +18,9 @@ var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 
 var physicsManager = new PhysicsManager();
+var audioManager;
+var player;
+var hud;
 var entityManager = new EntityManager(canvas, 128, function(ent1, ent2){
   ent1.isColliding = true;
   ent2.isColliding = true;
@@ -32,11 +36,18 @@ var entityManager = new EntityManager(canvas, 128, function(ent1, ent2){
 
   if(ent1.type == 'asteroid' && ent2.type == 'player' ||
      ent2.type == 'asteroid' && ent1.type == 'player'){
-    asteroidPlayerCollision(ent1, ent2);
+       asteroidPlayerCollision(ent1, ent2);
   }
 
 });
 var resourceManager = new ResourceManager(function(){
+  audioManager = new AudioManager(resourceManager);
+  player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas, entityManager, audioManager);
+  hud = new Hud(player, canvas.width, canvas.height);
+
+  addOnKeyWrapper();
+
+  entityManager.addEntity(player);
   addAsteroids();
   masterLoop(performance.now());
 });
@@ -46,12 +57,7 @@ var GameState = {
   Over: 1
 };
 
-var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas, entityManager);
 var gameState = GameState.Playing;
-var hud = new Hud(player, canvas.width, canvas.height);
-
-entityManager.addEntity(player);
-
 
 var gameOverAlpha = 0;
 var gameOverProgress = new ProgressManager(1000,
@@ -95,6 +101,11 @@ var newGameProgress = new ProgressManager(1000,
     }
   });
 });
+
+resourceManager.addAudio('assets/asteroid_collision.wav');
+resourceManager.addAudio('assets/laser.wav');
+resourceManager.addAudio('assets/ship_destruction.wav');
+
 resourceManager.loadAll();
 
 /**
@@ -113,21 +124,25 @@ function repositionForOverlap(ent1, ent2){
   var bottomEnt = ent1.y < ent2.y ? ent2 : ent1;
 
   var offset = topEnt.y + topEnt.height - bottomEnt.y;
-  topEnt.y -= offset/2;
-  bottomEnt.y += offset/2;
+  topEnt.y -= (offset);
+  bottomEnt.y += (offset);
 
+/*
   var leftEnt = ent1.x < ent2.x ? ent1 : ent2;
   var rightEnt = ent1.x < ent2.x ? ent2 : ent1;
 
   var offsetX = leftEnt.x + leftEnt.width - rightEnt.x;
   leftEnt.x -= offsetX/2;
-  rightEnt.x += offsetX/2;
+  rightEnt.x += offsetX/2;*/
+  console.log(topEnt);
+  console.log(bottomEnt);
 }
 
 function addAsteroids(){
-  var asteroidCount = (window.debug) ? 3 : (Math.floor((Math.random() * 10) + 10));
+  var asteroidCount = (window.debug) ? 3 : 10;
   for(var i = 0; i < asteroidCount; i++){
-    entityManager.addEntity(new Asteroid('', '', resourceManager, canvas));
+    // Loop until a given entity is placed
+    while(!entityManager.addEntity(new Asteroid('', '', resourceManager, canvas))){}
   }
 }
 
@@ -135,21 +150,29 @@ function asteroidPlayerCollision(ent1, ent2){
   var asteroid = (ent1.type == 'asteroid') ? ent1 : ent2;
   var player = (ent1.type == 'asteroid') ? ent2 : ent1;
 
+  audioManager.play(audioManager.AudioClip.ShipDestruction);
+
+  entityManager.destroyEntity(player);
   player.resetToCenter();
 
   player.lives -= 1;
+  if(player.lives < 0) player.lives = 0;
   if(player.lives == 0){
     gameOver();
     return;
   }
+
+  setTimeout(function(){entityManager.addEntity(player)}, 1000);
 
   destroyAsteroid(asteroid);
   levelIfAllAsteroidDestroyed();
 }
 
 function asteroidAsteroidCollision(ent1, ent2){
+
   physicsManager.applyCollisionPhysics(ent1, ent2);
-  repositionForOverlap(ent1, ent2);
+  if(!ent1.collisionStuck) audioManager.play(audioManager.AudioClip.AsteroidCollision);
+  //if(ent1.collisionStuck) repositionForOverlap(ent1, ent2);
 }
 
 function asteroidBulletCollision(ent1, ent2){
@@ -166,10 +189,8 @@ function asteroidBulletCollision(ent1, ent2){
 }
 
 function gameOver(){
-  entityManager.destroyEntity(player);
   gameOverProgress.isActive = true;
   gameState = GameState.Over;
-  //TODO: This
 }
 
 function levelIfAllAsteroidDestroyed(){
@@ -187,7 +208,7 @@ function destroyAsteroid(asteroid){
   var newAsters = asteroid.createNextAsteroids();
   if(newAsters){
     newAsters.forEach(function(aster){
-      entityManager.addEntity(aster);
+      entityManager.addEntity(aster, true);
     });
   }
   entityManager.destroyEntity(asteroid);
@@ -238,14 +259,22 @@ function render(elapsedTime, ctx) {
   ctx.restore();
 }
 
-var playerOnKey = window.onkeydown;
-window.onkeydown = function(event) {
-  if (gameState == GameState.Over){
-    if(event.keyCode == 32){
-      newGameProgress.isActive = true;
+function addOnKeyWrapper(){
+  var playerOnKeyDown = window.onkeydown;
+  window.onkeydown = function(event) {
+    if (gameState == GameState.Over){
+      if(event.keyCode == 32){
+        newGameProgress.isActive = true;
+      }
+      return;
     }
-    return;
+
+    playerOnKeyDown(event);
   }
 
-  playerOnKey(event);
+  var playerOnKeyUp = window.onkeyup;
+  window.onkeyup = function(event) {
+    if (gameState == GameState.Over && event.keyCode == 32) return;
+    playerOnKeyUp(event);
+  }
 }

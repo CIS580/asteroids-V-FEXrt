@@ -24,13 +24,25 @@ function EntityManager(canvas, cellSize, callback) {
   }
 }
 
-EntityManager.prototype.addEntity = function(entity) {
+EntityManager.prototype.addEntity = function(entity, override) {
   // Entites are expected to have the following
   // - position.x, position.y, size.width, size.height (they should define a rect)
   // - type (a unique string represeting the object, usually the class name)
   // - render (a function to render the entity)
   // - update (a function to update the entity)
-  this.entities.push(entity);
+  var isOverlapping = false;
+
+  this.entities.forEach(function(e){
+    if(collision(entity, e)) isOverlapping = true;
+  });
+
+  if(override == true) isOverlapping = false;
+
+  if (!isOverlapping) {
+    entity.name = this.entities.length;
+    this.entities.push(entity);
+  }
+  return !isOverlapping;
 }
 
 EntityManager.prototype.destroyAllEntitiesOfType = function(type){
@@ -107,6 +119,9 @@ EntityManager.prototype.update = function(time, ctx){
     }
 
     cellsToCheck.forEach(function(cell){
+      //console.log(cell);
+      //console.log(self.cells);
+      //console.log(entity.type);
       self.cells[cell.x][cell.y].forEach(function(entity2){
         if(entity === entity2) return;
         if(collision(entity, entity2)) self.callback(entity, entity2);

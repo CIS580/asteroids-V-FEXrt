@@ -13,7 +13,7 @@ module.exports = exports = Player;
  * Creates a new player object
  * @param {Postition} position object specifying an x and y
  */
-function Player(position, canvas, entityManager) {
+function Player(position, canvas, entityManager, audioManager) {
   this.worldWidth = canvas.width;
   this.worldHeight = canvas.height;
   this.state = "idle";
@@ -23,6 +23,7 @@ function Player(position, canvas, entityManager) {
   this.level = 0;
   this.lives = 3;
   this.entityManager = entityManager;
+  this.audioManager = audioManager;
   this.staring = {
     x: position.x,
     y: position.y
@@ -84,7 +85,8 @@ function Player(position, canvas, entityManager) {
     }
 
     if(event.keyCode == 32){
-      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager));
+      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager), true);
+      self.audioManager.play(self.audioManager.AudioClip.Laser);
     }
   }
 }

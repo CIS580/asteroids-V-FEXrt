@@ -57,7 +57,8 @@ function Asteroid(size, code, resourceManager, canvas) {
     this.size.width = 128;
     this.size.height = 128;
   }
-
+  this.collisionCount = 0;
+  this.collisionStuck = false;
 }
 
 Asteroid.prototype.createNextAsteroids = function(){
@@ -73,11 +74,11 @@ Asteroid.prototype.createNextAsteroids = function(){
       return;
       break;
   }
-
+  var offset = {'medium': 64, 'small': 32}[newSize];
   var a1 = new Asteroid(newSize, this.code, this.resourceManager, this.canvas);
   var a2 = new Asteroid(newSize, this.code, this.resourceManager, this.canvas)
-  a1.position = {x: this.position.x, y: this.position.y};
-  a2.position = {x: this.position.x, y: this.position.y};
+  a1.position = {x: this.position.x - offset, y: this.position.y - offset};
+  a2.position = {x: this.position.x + offset, y: this.position.y + offset};
 
   a1.velocity = {
     x: this.velocity.x,
@@ -111,6 +112,7 @@ Asteroid.prototype.update = function(time) {
   if(this.position.x > this.worldWidth) this.position.x -= (this.worldWidth + this.size.width);
   if(this.position.y + this.size.height < 0) this.position.y += (this.worldHeight + this.size.height);
   if(this.position.y > this.worldHeight) this.position.y -= (this.worldHeight + this.size.height);
+
 }
 
 Asteroid.prototype.render = function(time, ctx){
@@ -128,6 +130,17 @@ Asteroid.prototype.render = function(time, ctx){
     ctx.stroke();
   }
 
+  // stuck in collision
+  if(this.isColliding){
+    this.collisionCount++;
+  }else{
+    this.collisionCount = 0;
+  }
+  if(this.collisionCount > 1){
+    this.collisionStuck = true;
+  }else{
+    this.collisionStuck = false;
+  }
   this.isColliding = false;
 
   ctx.restore();

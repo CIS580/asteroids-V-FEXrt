@@ -1,6 +1,29 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
+module.exports = exports = AudioManager;
+
+function AudioManager(resourceManager) {
+  this.AudioClip = {
+    Laser: 0,
+    AsteroidCollision: 1,
+    ShipDestruction: 2
+  };
+
+  this.clips = [
+    resourceManager.getResource('assets/laser.wav'),
+    resourceManager.getResource('assets/asteroid_collision.wav'),
+    resourceManager.getResource('assets/ship_destruction.wav')
+  ]
+}
+
+AudioManager.prototype.play = function(audioClip){
+  this.clips[audioClip].play();
+}
+
+},{}],2:[function(require,module,exports){
+"use strict";
+
 /**
  * @module exports the Car class
  */
@@ -25,13 +48,25 @@ function EntityManager(canvas, cellSize, callback) {
   }
 }
 
-EntityManager.prototype.addEntity = function(entity) {
+EntityManager.prototype.addEntity = function(entity, override) {
   // Entites are expected to have the following
   // - position.x, position.y, size.width, size.height (they should define a rect)
   // - type (a unique string represeting the object, usually the class name)
   // - render (a function to render the entity)
   // - update (a function to update the entity)
-  this.entities.push(entity);
+  var isOverlapping = false;
+
+  this.entities.forEach(function(e){
+    if(collision(entity, e)) isOverlapping = true;
+  });
+
+  if(override == true) isOverlapping = false;
+
+  if (!isOverlapping) {
+    entity.name = this.entities.length;
+    this.entities.push(entity);
+  }
+  return !isOverlapping;
 }
 
 EntityManager.prototype.destroyAllEntitiesOfType = function(type){
@@ -108,6 +143,9 @@ EntityManager.prototype.update = function(time, ctx){
     }
 
     cellsToCheck.forEach(function(cell){
+      //console.log(cell);
+      //console.log(self.cells);
+      //console.log(entity.type);
       self.cells[cell.x][cell.y].forEach(function(entity2){
         if(entity === entity2) return;
         if(collision(entity, entity2)) self.callback(entity, entity2);
@@ -147,7 +185,7 @@ function collision(entity1, entity2){
     (entity1.position.x + entity1.size.width < entity2.position.x))
 }
 
-},{}],2:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 "use strict";
 
 /**
@@ -162,6 +200,20 @@ module.exports = exports = PhysicsManager;
 function PhysicsManager() {}
 
 PhysicsManager.prototype.applyCollisionPhysics = function (entity1, entity2) {
+
+  /*var collisionVector = {
+    x: (entity1.position.x + entity1.size.width / 2) - (entity2.position.x + entity2.size.width / 2),
+    y: (entity1.position.y + entity1.size.height / 2) - (entity2.position.y + entity2.size.height / 2),
+  }
+
+  var subV = {
+    x: entity2.position.x - entity1.position.x,
+    y: entity2.position.y - entity1.position.y
+  }
+
+  if((collisionVector.x * subV.x + collisionVector.y * subV.y) > 0){
+    return
+  }*/
 
   var m2m1 = (entity2.mass - entity1.mass)/(entity2.mass + entity1.mass);
   var m1 = (2 * entity1.mass)/(entity2.mass + entity1.mass);
@@ -184,7 +236,7 @@ PhysicsManager.prototype.applyCollisionPhysics = function (entity1, entity2) {
 
 }
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 
 module.exports = exports = ProgressManager;
@@ -223,7 +275,7 @@ ProgressManager.prototype.reset = function(){
   this.isActive = false;
 }
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 
 module.exports = exports = ResourceManager
@@ -271,10 +323,10 @@ ResourceManager.prototype.loadAll = function() {
   });
 }
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict;"
 
-window.debug = true;
+window.debug = false;
 
 /* Classes */
 const Game = require('./game.js');
@@ -284,6 +336,7 @@ const ResourceManager = require('./ResourceManager.js');
 const EntityManager = require('./EntityManager.js');
 const PhysicsManager = require('./PhysicsManager.js');
 const ProgressManager = require('./ProgressManager.js');
+const AudioManager = require('./AudioManager.js');
 const Hud = require('./hud.js');
 
 /* Global variables */
@@ -291,6 +344,9 @@ var canvas = document.getElementById('screen');
 var game = new Game(canvas, update, render);
 
 var physicsManager = new PhysicsManager();
+var audioManager;
+var player;
+var hud;
 var entityManager = new EntityManager(canvas, 128, function(ent1, ent2){
   ent1.isColliding = true;
   ent2.isColliding = true;
@@ -306,11 +362,18 @@ var entityManager = new EntityManager(canvas, 128, function(ent1, ent2){
 
   if(ent1.type == 'asteroid' && ent2.type == 'player' ||
      ent2.type == 'asteroid' && ent1.type == 'player'){
-    asteroidPlayerCollision(ent1, ent2);
+       asteroidPlayerCollision(ent1, ent2);
   }
 
 });
 var resourceManager = new ResourceManager(function(){
+  audioManager = new AudioManager(resourceManager);
+  player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas, entityManager, audioManager);
+  hud = new Hud(player, canvas.width, canvas.height);
+
+  addOnKeyWrapper();
+
+  entityManager.addEntity(player);
   addAsteroids();
   masterLoop(performance.now());
 });
@@ -320,12 +383,7 @@ var GameState = {
   Over: 1
 };
 
-var player = new Player({x: canvas.width/2, y: canvas.height/2}, canvas, entityManager);
 var gameState = GameState.Playing;
-var hud = new Hud(player, canvas.width, canvas.height);
-
-entityManager.addEntity(player);
-
 
 var gameOverAlpha = 0;
 var gameOverProgress = new ProgressManager(1000,
@@ -369,6 +427,11 @@ var newGameProgress = new ProgressManager(1000,
     }
   });
 });
+
+resourceManager.addAudio('assets/asteroid_collision.wav');
+resourceManager.addAudio('assets/laser.wav');
+resourceManager.addAudio('assets/ship_destruction.wav');
+
 resourceManager.loadAll();
 
 /**
@@ -387,21 +450,25 @@ function repositionForOverlap(ent1, ent2){
   var bottomEnt = ent1.y < ent2.y ? ent2 : ent1;
 
   var offset = topEnt.y + topEnt.height - bottomEnt.y;
-  topEnt.y -= offset/2;
-  bottomEnt.y += offset/2;
+  topEnt.y -= (offset);
+  bottomEnt.y += (offset);
 
+/*
   var leftEnt = ent1.x < ent2.x ? ent1 : ent2;
   var rightEnt = ent1.x < ent2.x ? ent2 : ent1;
 
   var offsetX = leftEnt.x + leftEnt.width - rightEnt.x;
   leftEnt.x -= offsetX/2;
-  rightEnt.x += offsetX/2;
+  rightEnt.x += offsetX/2;*/
+  console.log(topEnt);
+  console.log(bottomEnt);
 }
 
 function addAsteroids(){
-  var asteroidCount = (window.debug) ? 3 : (Math.floor((Math.random() * 10) + 10));
+  var asteroidCount = (window.debug) ? 3 : 10;
   for(var i = 0; i < asteroidCount; i++){
-    entityManager.addEntity(new Asteroid('', '', resourceManager, canvas));
+    // Loop until a given entity is placed
+    while(!entityManager.addEntity(new Asteroid('', '', resourceManager, canvas))){}
   }
 }
 
@@ -409,21 +476,29 @@ function asteroidPlayerCollision(ent1, ent2){
   var asteroid = (ent1.type == 'asteroid') ? ent1 : ent2;
   var player = (ent1.type == 'asteroid') ? ent2 : ent1;
 
+  audioManager.play(audioManager.AudioClip.ShipDestruction);
+
+  entityManager.destroyEntity(player);
   player.resetToCenter();
 
   player.lives -= 1;
+  if(player.lives < 0) player.lives = 0;
   if(player.lives == 0){
     gameOver();
     return;
   }
+
+  setTimeout(function(){entityManager.addEntity(player)}, 1000);
 
   destroyAsteroid(asteroid);
   levelIfAllAsteroidDestroyed();
 }
 
 function asteroidAsteroidCollision(ent1, ent2){
+
   physicsManager.applyCollisionPhysics(ent1, ent2);
-  repositionForOverlap(ent1, ent2);
+  if(!ent1.collisionStuck) audioManager.play(audioManager.AudioClip.AsteroidCollision);
+  //if(ent1.collisionStuck) repositionForOverlap(ent1, ent2);
 }
 
 function asteroidBulletCollision(ent1, ent2){
@@ -440,10 +515,8 @@ function asteroidBulletCollision(ent1, ent2){
 }
 
 function gameOver(){
-  entityManager.destroyEntity(player);
   gameOverProgress.isActive = true;
   gameState = GameState.Over;
-  //TODO: This
 }
 
 function levelIfAllAsteroidDestroyed(){
@@ -461,7 +534,7 @@ function destroyAsteroid(asteroid){
   var newAsters = asteroid.createNextAsteroids();
   if(newAsters){
     newAsters.forEach(function(aster){
-      entityManager.addEntity(aster);
+      entityManager.addEntity(aster, true);
     });
   }
   entityManager.destroyEntity(asteroid);
@@ -512,19 +585,27 @@ function render(elapsedTime, ctx) {
   ctx.restore();
 }
 
-var playerOnKey = window.onkeydown;
-window.onkeydown = function(event) {
-  if (gameState == GameState.Over){
-    if(event.keyCode == 32){
-      newGameProgress.isActive = true;
+function addOnKeyWrapper(){
+  var playerOnKeyDown = window.onkeydown;
+  window.onkeydown = function(event) {
+    if (gameState == GameState.Over){
+      if(event.keyCode == 32){
+        newGameProgress.isActive = true;
+      }
+      return;
     }
-    return;
+
+    playerOnKeyDown(event);
   }
 
-  playerOnKey(event);
+  var playerOnKeyUp = window.onkeyup;
+  window.onkeyup = function(event) {
+    if (gameState == GameState.Over && event.keyCode == 32) return;
+    playerOnKeyUp(event);
+  }
 }
 
-},{"./EntityManager.js":1,"./PhysicsManager.js":2,"./ProgressManager.js":3,"./ResourceManager.js":4,"./asteroid.js":6,"./game.js":8,"./hud.js":9,"./player.js":10}],6:[function(require,module,exports){
+},{"./AudioManager.js":1,"./EntityManager.js":2,"./PhysicsManager.js":3,"./ProgressManager.js":4,"./ResourceManager.js":5,"./asteroid.js":7,"./game.js":9,"./hud.js":10,"./player.js":11}],7:[function(require,module,exports){
 "use strict";
 
 const MS_PER_FRAME = 1000/8;
@@ -584,7 +665,8 @@ function Asteroid(size, code, resourceManager, canvas) {
     this.size.width = 128;
     this.size.height = 128;
   }
-
+  this.collisionCount = 0;
+  this.collisionStuck = false;
 }
 
 Asteroid.prototype.createNextAsteroids = function(){
@@ -600,11 +682,11 @@ Asteroid.prototype.createNextAsteroids = function(){
       return;
       break;
   }
-
+  var offset = {'medium': 64, 'small': 32}[newSize];
   var a1 = new Asteroid(newSize, this.code, this.resourceManager, this.canvas);
   var a2 = new Asteroid(newSize, this.code, this.resourceManager, this.canvas)
-  a1.position = {x: this.position.x, y: this.position.y};
-  a2.position = {x: this.position.x, y: this.position.y};
+  a1.position = {x: this.position.x - offset, y: this.position.y - offset};
+  a2.position = {x: this.position.x + offset, y: this.position.y + offset};
 
   a1.velocity = {
     x: this.velocity.x,
@@ -638,6 +720,7 @@ Asteroid.prototype.update = function(time) {
   if(this.position.x > this.worldWidth) this.position.x -= (this.worldWidth + this.size.width);
   if(this.position.y + this.size.height < 0) this.position.y += (this.worldHeight + this.size.height);
   if(this.position.y > this.worldHeight) this.position.y -= (this.worldHeight + this.size.height);
+
 }
 
 Asteroid.prototype.render = function(time, ctx){
@@ -655,12 +738,23 @@ Asteroid.prototype.render = function(time, ctx){
     ctx.stroke();
   }
 
+  // stuck in collision
+  if(this.isColliding){
+    this.collisionCount++;
+  }else{
+    this.collisionCount = 0;
+  }
+  if(this.collisionCount > 1){
+    this.collisionStuck = true;
+  }else{
+    this.collisionStuck = false;
+  }
   this.isColliding = false;
 
   ctx.restore();
 }
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 
 /**
@@ -725,7 +819,7 @@ Bullet.prototype.render = function(time, ctx){
   ctx.restore();
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 
 /**
@@ -783,7 +877,7 @@ Game.prototype.loop = function(newTime) {
   this.frontCtx.drawImage(this.backBuffer, 0, 0);
 }
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 
 /**
@@ -899,7 +993,7 @@ Hud.prototype.render = function(time, ctx) {
 
 }
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 
 const MS_PER_FRAME = 1000/8;
@@ -915,7 +1009,7 @@ module.exports = exports = Player;
  * Creates a new player object
  * @param {Postition} position object specifying an x and y
  */
-function Player(position, canvas, entityManager) {
+function Player(position, canvas, entityManager, audioManager) {
   this.worldWidth = canvas.width;
   this.worldHeight = canvas.height;
   this.state = "idle";
@@ -925,6 +1019,7 @@ function Player(position, canvas, entityManager) {
   this.level = 0;
   this.lives = 3;
   this.entityManager = entityManager;
+  this.audioManager = audioManager;
   this.staring = {
     x: position.x,
     y: position.y
@@ -986,7 +1081,8 @@ function Player(position, canvas, entityManager) {
     }
 
     if(event.keyCode == 32){
-      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager));
+      self.entityManager.addEntity(new Bullet(self.position, self.angle, canvas, entityManager), true);
+      self.audioManager.play(self.audioManager.AudioClip.Laser);
     }
   }
 }
@@ -1089,4 +1185,4 @@ Player.prototype.render = function(time, ctx) {
   ctx.restore();
 }
 
-},{"./bullet.js":7}]},{},[5]);
+},{"./bullet.js":8}]},{},[6]);
