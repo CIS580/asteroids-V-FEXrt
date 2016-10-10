@@ -58,4 +58,7 @@ The bundle will automatically be re-created every time you change a source file.
 ## Credits
 The asteroids were provided by [phaelax](http://opengameart.org/users/phaelax) of  [Open Game Art](http://opengameart.org) released under a CC-BY 3.0 license.
 
+
+Sfx generated with [Bfxr.](http://www.bfxr.net/)
+
 Game framework HTML5/CSS3/Javascript code was written by course instructor Nathan Bean, and released under a CC-BY license.
